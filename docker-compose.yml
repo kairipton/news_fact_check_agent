@@ -1,0 +1,8 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8102:8102"      # 호스트:컨테이너 포트 매핑
+    env_file:
+      - .env             # API 키 등 환경변수를 .env에서 로드
+    restart: unless-stopped

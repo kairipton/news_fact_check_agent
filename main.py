@@ -10,6 +10,9 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from langgraph.graph import END, START, StateGraph
 
 from agents import build_fact_check_agent
@@ -90,6 +93,8 @@ def create_initial_state(input_text: str) -> FactCheckState:
         claims=[],
         search_results=[],
         judgment_results=[],
+        debate_pro="",
+        debate_con="",
         judge_score=0.0,
         judge_feedback="",
         correction_retries=0,

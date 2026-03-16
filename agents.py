@@ -89,23 +89,32 @@ def build_fact_check_agent() -> Any:
     Returns:
         컴파일된 서브그래프 인스턴스.
     """
-    workflow = StateGraph(FactCheckState)
+    graph = StateGraph(FactCheckState)
 
     # 주장과 근거를 바탕으로 사실 판단.
-    workflow.add_node("fact_judge", nodes.fact_judge_node)
+    #graph.add_node("fact_judge", nodes.fact_judge_node)
+
+    # 양측 키보드 배틀 준비.
+    graph.add_node( "debate", nodes.debate_node )
+
+    # 키보드 배틀 결과.
+    graph.add_node( "debate_judge", nodes.debate_judge_node)
 
     # LLM as a Judge
     # 사실과 얼마나 부합하는지(0~1), 그리고 개선을 위한 피드백.
-    workflow.add_node("llm_judge", nodes.llm_judge_node)
+    graph.add_node("llm_judge", nodes.llm_judge_node)
 
     # 자가 수정 준비.    
-    workflow.add_node("self_correction", nodes.self_correction_node)
+    graph.add_node("self_correction", nodes.self_correction_node)
 
-    workflow.add_edge(START, "fact_judge")
-    workflow.add_edge("fact_judge", "llm_judge")
+    #graph.add_edge(START, "fact_judge")
+    #graph.add_edge("fact_judge", "llm_judge")
+    graph.add_edge(START, "debate")
+    graph.add_edge("debate", "debate_judge")
+    graph.add_edge("debate_judge", "llm_judge")
 
     # LLM Judge 후 점수를 판단해 사실과 부합하다 판단 되면 끝내거나 다시 자가 수정으로 이동.
-    workflow.add_conditional_edges(
+    graph.add_conditional_edges(
         "llm_judge",
         _route_in_fact_check_agent,
         {
@@ -115,6 +124,6 @@ def build_fact_check_agent() -> Any:
     )
 
     # 자가 수정이 필요한 경우 준비(재시도 수 증가 등...)후 사실 판단 재시작.
-    workflow.add_edge("self_correction", "fact_judge")
+    graph.add_edge("self_correction", "debate")
 
-    return workflow.compile()
+    return graph.compile()

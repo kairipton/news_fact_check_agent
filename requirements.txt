@@ -27,6 +27,7 @@ chromadb
 openai
 tiktoken
 python-dotenv
+rapidfuzz
 
 # 키워드(BM25) 검색용
 rank-bm25

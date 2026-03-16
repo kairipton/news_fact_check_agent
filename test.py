@@ -9,6 +9,7 @@ Streamlit 없이 단독으로 실행하여 파이프라인 전체 동작을 검�
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import main
 from main import create_initial_state
@@ -54,7 +55,10 @@ def run_single_test(label: str, input_text: str) -> None:
     print(f"  Self-Correction: {result.get('correction_retries', 0)}회")
     print(f"  에러           : {result.get('error')}")
 
-    debug_path = f".test_result_{label.replace(' ', '_')}.json"
+    path_dir = Path( f"test_results" )
+    path_dir.mkdir(exist_ok=True)
+
+    debug_path = f"./{str(path_dir)}/.result_{label.replace(' ', '_')}.json"
     with open(debug_path, "w", encoding="utf-8") as fp:
         serializable = {
             k: v for k, v in result.items() if isinstance(v, (str, int, float, list, dict, type(None)))

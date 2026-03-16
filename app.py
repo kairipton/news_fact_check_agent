@@ -132,10 +132,35 @@ def main_app() -> None:
     if run_button and input_text.strip():
         initial_state = create_initial_state(input_text)
 
-        with st.spinner("파이프라인 실행 중..."):
-            result = pipeline.invoke(initial_state)
+        # st.status(): 진행 상태를 실시간으로 표시하는 Streamlit 컨테이너.
+        # expanded=True → 실행 중에는 펼쳐진 상태로 노드 진행 상황을 보여줌.
+        status = st.status("파이프라인 실행 중...", expanded=True)
 
-        st.success("분석 완료!")
+        # 최종 결과를 누적할 딕셔너리.
+        # pipeline.stream()은 노드별 출력을 조각(chunk)으로 yield하기 때문에
+        # 모든 노드가 끝난 후 전체 결과를 쓰려면 여기에 계속 합쳐야 함.
+        result: dict = {}
+
+        with status:
+            # pipeline.stream(): invoke()와 달리 노드 하나가 완료될 때마다 즉시 yield.
+            # chunk 구조: { "노드이름": { 상태필드: 값, ... } }
+            # 예: { "claim_extractor": { "claims": ["주장1", "주장2"] } }
+            for chunk in pipeline.stream(initial_state):
+
+                # chunk는 항상 키가 하나 — 방금 완료된 노드 이름
+                node_name = list(chunk.keys())[0]
+
+                # 해당 노드의 출력(부분 상태)을 전체 결과에 누적.
+                # update()를 쓰는 이유: 노드마다 서로 다른 필드를 리턴하므로
+                # 덮어쓰지 않고 계속 합쳐야 최종 상태가 완성됨.
+                result.update(chunk[node_name])
+
+                # 노드 완료 시 status 라벨을 실시간으로 갱신 → UI에 즉시 반영
+                status.update(label=f"✅ {node_name} 완료")
+
+        # 모든 노드 완료 후 status를 "complete" 상태로 전환 (초록색 체크 아이콘)
+        status.update(label="분석 완료!", state="complete", expanded=False)
+
         render_error_banner(result)
 
         # 노드별 결과 expander

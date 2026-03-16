@@ -1,8 +1,6 @@
 """
 뉴스 팩트체크 에이전트 - 유틸리티 함수 모음
 """
-from __future__ import annotations
-
 
 def clean_news_text(text: str) -> str:
     """뉴스 본문에서 불필요한 공백과 특수문자를 정리합니다."""

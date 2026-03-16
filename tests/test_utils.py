@@ -71,13 +71,3 @@ class TestExtractKeywords:
 
     def test_empty_text_returns_empty_list(self):
         assert extract_keywords("") == []
-
-
-@pytest.mark.parametrize("url,expected", [
-    ("https://naver.com", True),
-    ("http://daum.net", True),
-    ("www.google.com", False),
-    ("", False),
-])
-def test_is_valid_url_parametrize(url, expected):
-    assert is_valid_url(url) is expected

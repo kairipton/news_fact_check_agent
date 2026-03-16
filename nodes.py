@@ -129,15 +129,13 @@ def evidence_searcher_node(state: FactCheckState) -> dict[str, Any]:
     return {"search_results": search_results}
 
 
-# ---------------------------------------------------------------------------
-# 노드 3: 사실 판단 (Fact Judge)
-# ---------------------------------------------------------------------------
+
 
 def fact_judge_node(state: FactCheckState) -> dict[str, Any]:
     """
     검색된 근거를 바탕으로 각 주장의 사실 여부를 판단.
     Self-Correction 루프에서 재진입 시 judge_feedback을 근거에 추가해 개선된 판단을 유도.
-    주장(claim), 판단(verdict), 근거(reasoning)를 리스트로 만들어 judgement_results로 리턴.
+    주장(claim), 판단(verdict), 근거(reason)를 리스트로 만들어 judgement_results로 리턴.
 
     Args:
         state: 현재 파이프라인 상태. search_results, judge_feedback 필드를 사용합니다.
@@ -215,6 +213,109 @@ def fact_judge_node(state: FactCheckState) -> dict[str, Any]:
             )
 
     logger.info("[fact_judge] 노드 종료. 판단 결과 수: %d", len(judgment_results))
+    return {"judgment_results": judgment_results}
+
+
+def debate_node(state: FactCheckState) -> dict[str, Any]:
+    """
+    Agent Debate 노드: 단순 판단 대신 찬성/반대 에이전트가 토론을 벌여 최종 판정을 내리는 모듈입니다.
+    Debate Promopting 기반이며, 멀티라운드가 아니라 단판 승부.
+
+    Args:
+        state: 현재 파이프라인 상태.
+
+    Returns:
+        State 업데이트.
+        - debate_pro(str): 찬성 에이전트의 주장.
+        - debate_con(str): 반대 에이전트의 주장.
+    """
+    logger.info("[debate_node] 노드 진입. 토론 모듈 실행.")
+
+    if state.get("error"):
+        logger.warning("[debate_node] 에러 상태 감지. 토론 평가 생략. 점수 0.0 반환.")
+        return {}
+    
+    module = dspy_modules.agent_debate  # DSPy ChainOfThought 모듈
+
+    search_results = state.get("search_results", [])
+
+    # 여러 주장/근거를 " | "로 합쳐 한 번에 모듈 호출
+    combined_claim = " | ".join(item["claim"] for item in search_results)
+    combined_evidence = " | ".join(item["evidence"] for item in search_results)
+
+    try:
+        result = module(claim=combined_claim, evidence=combined_evidence)
+        debate_pro = result.debate_pro
+        debate_con = result.debate_con
+    except OpenAIError as e:
+        logger.error("[debate_node] OpenAI API 호출 실패: %s", e, exc_info=True)
+        return {
+            "error": f"토론 모듈 실행 중 OpenAI 오류: {e}",
+            "debate_pro": "",
+            "debate_con": "",
+        }
+    except Exception as e:
+        logger.error("[debate_node] 예기치 않은 오류: %s", e, exc_info=True)
+        return {
+            "error": f"토론 모듈 실행 중 오류: {e}",
+            "debate_pro": "",
+            "debate_con": "",
+        }
+
+    logger.info("[debate_node] 노드 종료. 찬반 논거 생성 완료.")
+    return {
+        "debate_pro": debate_pro,
+        "debate_con": debate_con,
+    }
+
+
+def debate_judge_node(state: FactCheckState) -> dict[str, Any]:
+    """
+    Debate Judge 노드: 찬성/반대 논거를 검토하여 최종 판정을 내립니다.
+    debate_node 이후에 실행되며, fact_judge_node를 대체합니다.
+
+    Args:
+        state: 현재 파이프라인 상태. search_results, debate_pro, debate_con 필드를 사용합니다.
+
+    Returns:
+        judgment_results 필드를 포함한 부분 상태 업데이트 딕셔너리.
+    """
+    logger.info("[debate_judge] 노드 진입.")
+
+    if state.get("error"):
+        logger.warning("[debate_judge] 에러 상태 감지. 판정 생략.")
+        return {}
+
+    module = dspy_modules.debate_judge
+
+    search_results = state.get("search_results", [])
+    debate_pro = state.get("debate_pro", "")
+    debate_con = state.get("debate_con", "")
+
+    combined_claim = " | ".join(item["claim"] for item in search_results)
+    combined_evidence = " | ".join(item["evidence"] for item in search_results)
+
+    try:
+        result = module(
+            claim=combined_claim,
+            evidence=combined_evidence,
+            debate_pro=debate_pro,
+            debate_con=debate_con,
+        )
+        verdict = result.verdict.strip().upper()
+        reasoning = result.reason.strip()
+
+        # llm_judge_node가 judgment_results 리스트 구조를 소비하므로 동일한 포맷으로 반환
+        judgment_results = [{"claim": combined_claim, "verdict": verdict, "reasoning": reasoning}]
+
+    except OpenAIError as exc:
+        logger.error("[debate_judge] OpenAI API 호출 실패: %s", exc, exc_info=True)
+        judgment_results = [{"claim": combined_claim, "verdict": "UNVERIFIABLE", "reasoning": f"API 오류: {exc}"}]
+    except Exception as exc:
+        logger.error("[debate_judge] 예기치 않은 오류: %s", exc, exc_info=True)
+        judgment_results = [{"claim": combined_claim, "verdict": "UNVERIFIABLE", "reasoning": f"오류 발생: {exc}"}]
+
+    logger.info("[debate_judge] 노드 종료. 판정: %s", judgment_results[0]["verdict"])
     return {"judgment_results": judgment_results}
 
 
@@ -347,11 +448,21 @@ def report_generator_node(state: FactCheckState) -> dict[str, Any]:
 
     judgment_results = state.get("judgment_results", [])
 
+    # 찬반 토론 섹션
+    debate_pro = state.get("debate_pro", "")
+    debate_con = state.get("debate_con", "")
+    if debate_pro or debate_con:
+        lines.append("## 🗣️ 찬반 토론\n")
+        if debate_pro:
+            lines.append(f"**👍 찬성 측 논거**\n{debate_pro}\n")
+        if debate_con:
+            lines.append(f"**👎 반대 측 논거**\n{debate_con}\n")
+
     if not judgment_results:
         lines.append("_분석된 주장이 없습니다._\n")
     else:
         verdict_icon = {"TRUE": "✅", "FALSE": "❌", "UNVERIFIABLE": "❓"}
-        lines.append(f"## 분석 결과 — 총 {len(judgment_results)}개 주장\n")
+        lines.append(f"## 최종 판정\n")
 
         for idx, item in enumerate(judgment_results, start=1):
             verdict = item.get("verdict", "UNVERIFIABLE")
