@@ -2,9 +2,11 @@
 
 LangGraph + DSPy + Multi Agent + Debate Prompting + Self Correction + LLM as a Judge 기반 사실 확인 검사 에이전트.
 
-> 이 포트폴리오는 이전 포트폴리오에서 제대로 적용하지 못했거나, 오버엔지니어링 이라 판단되어 적용하지 않았던 기술들을 이용해 별도의 포트폴리오로 만든 결과물 입니다. 
+> 이 포트폴리오는 이전 포트폴리오에서 제대로 적용하지 못했거나, 오버엔지니어링이라 판단되어 적용하지 않았던 기술들을 이용해 별도의 포트폴리오로 만든 결과물입니다.
 
-> 이전 포트폴리오는 아래 링크에서 확인 해주세요.<br>https://github.com/kairipton/coupang-incident-analysis-agent-python
+> 이전 포트폴리오: [쿠팡 개인정보 유출 사고 분석 AI 에이전트](https://github.com/kairipton/coupang-incident-analysis-agent-python)
+
+**[▶ 데모 바로가기](https://factcheck.mbh.watch/)**
 
 ---
 
@@ -20,14 +22,13 @@ LangGraph + DSPy + Multi Agent + Debate Prompting + Self Correction + LLM as a J
 | **rapidfuzz** | 편집 거리 기반 문자열 유사도 (DSPy metric 개선) |
 | **LangSmith** | 파이프라인 실행 트레이싱 및 모니터링 |
 | **pydantic-settings** | `.env` 기반 환경변수 관리 |
-| **Docker** | 컨테이너 배포 |
+| **배포** | Docker, Contabo VPS, nginx |
 
 ---
 
 ## 아키텍처
 
 ### 전체 파이프라인 흐름
-
 ```
 사용자 입력 (뉴스 텍스트)
     │
@@ -66,7 +67,6 @@ report_generator       ← 찬반 토론 + 최종 판정 마크다운 리포트 
 ---
 
 ## DSPy 활용 방식
-
 ```python
 class AgentDebateSignature(dspy.Signature):
     claim: str = dspy.InputField(desc="논의할 주장")
@@ -83,8 +83,10 @@ class AgentDebateSignature(dspy.Signature):
 | `debate_judge` | ChainOfThought | ✅ | 최종 판정(TRUE/FALSE/UNVERIFIABLE) metric 사용 |
 | `llm_judge` | Predict | ✅ | 완성된 결과를 평가만 하므로 추론 불필요 |
 
+---
 
 ## 핵심 구현 포인트 및 기술 채택 이유
+
 ### 1. LangGraph
 - LangChain의 LCEL은 선형 체인 구조라 조건 분기, 루프, 서브그래프 같은 복잡한 흐름을 표현하기 어려움
 - LangGraph는 노드/엣지 기반 그래프 구조로 `Self-Correction` 루프, 서브그래프 분리 등을 명시적으로 표현 가능
@@ -106,9 +108,9 @@ class AgentDebateSignature(dspy.Signature):
 - 점수가 기준 미달일 경우 `Self-Correction` 루프를 트리거하는 게이트 역할을 겸함
 
 ### 5. Self Correction
-- LLM as a Judge의 점수가 기준 미달일 때 자동으로 재시도하는 루프
+- LLM as a Judge의 점수가 기준 미달(`correction_threshold=0.7`)일 때 자동으로 재시도하는 루프
 - 재진입 시 이전 판정에 대한 Judge 피드백을 근거에 추가해 LLM이 개선된 판단을 내리도록 유도
-- 무한 루프 방지를 위해 최대 재시도 횟수(`max_correction_retries`)를 설정값으로 관리
+- 무한 루프 방지를 위해 최대 재시도 횟수(`max_correction_retries=3`)를 설정값으로 관리
 
 ### 6. Debate Prompting
 - 단일 LLM에게 TRUE/FALSE를 묻는 방식은 편향된 판정을 낼 수 있다는 한계가 있음
@@ -116,7 +118,7 @@ class AgentDebateSignature(dspy.Signature):
 - 단순 판단보다 다각도 분석이 가능하고, 리포트에 찬반 논거가 함께 출력되어 사용자에게 판단 근거를 투명하게 제공
 
 ### 7. Rapidfuzz
-- 시용자 입력에 대한 주장이 올바르게 생성 되었는지 확인 할때, 키워드 매칭만으로는 한계가 있다 판단.
+- 사용자 입력에 대한 주장이 올바르게 생성되었는지 확인할 때, 키워드 매칭만으로는 한계가 있다 판단
 - 예) 정답 키워드 `"BTS 빌보드"` vs 예측 결과 `"BTS가 빌보드 핫100에서"` → 단순 매칭은 False
-- 그렇다고 유사도 검색을 넣기엔 오버 엔지니어링.
+- 그렇다고 유사도 검색을 넣기엔 오버엔지니어링
 - rapidfuzz의 `partial_ratio`를 사용해 편집 거리 기반 유사도 80점 이상이면 합격으로 처리, 표현 변형에도 robust한 metric 구현
