@@ -127,9 +127,13 @@ def main_app() -> None:
         label_visibility="collapsed",
     )
 
-    run_button = st.button("🚀 팩트체크 실행", type="primary", disabled=not input_text.strip())
+    run_button = st.button("🚀 팩트체크 실행", type="primary")
 
-    if run_button and input_text.strip():
+    if run_button:
+        if not input_text.strip():
+            st.warning("텍스트를 입력해주세요.")
+            st.stop()
+
         initial_state = create_initial_state(input_text)
 
         # st.status(): 진행 상태를 실시간으로 표시하는 Streamlit 컨테이너.
