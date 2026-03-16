@@ -4,9 +4,11 @@ LangGraph + DSPy + Multi Agent + Debate Prompting + Self Correction + LLM as a J
 
 > 이 포트폴리오는 이전 포트폴리오에서 제대로 적용하지 못했거나, 오버엔지니어링이라 판단되어 적용하지 않았던 기술들을 이용해 별도의 포트폴리오로 만든 결과물입니다.
 
+**[▶ 데모 바로가기](https://factcheck.mbh.watch/)**
+
 > 이전 포트폴리오: [쿠팡 개인정보 유출 사고 분석 AI 에이전트](https://github.com/kairipton/coupang-incident-analysis-agent-python)
 
-**[▶ 데모 바로가기](https://factcheck.mbh.watch/)**
+
 
 ---
 
