@@ -133,3 +133,14 @@ class AgentDebateSignature(dspy.Signature):
 - rapidfuzz의 `partial_ratio`를 사용해 편집 거리 기반 유사도 80점 이상이면 합격으로 처리, 표현 변형에도 robust한 metric 구현
 
 ---
+
+## 알려진 한계
+
+### 검색 결과 의존성
+Debate Prompting은 찬반 양측이 충분한 근거를 바탕으로 논거를 구성해야 정확한 판정이 가능합니다.
+반대 측 주장을 반박할 근거를 Tavily가 검색하지 못하면, 반대 측 논거가 약해지지 않아 Judge가 양측이 팽팽하다고 판단하고 `UNVERIFIABLE`을 반환하는 경우가 있습니다.
+
+이는 검색 기반 팩트체크의 구조적 한계로, **반박 근거가 검색되지 않는 한 프롬프트 튜닝으로는 해결이 어렵습니다.**
+
+### UNVERIFIABLE 과소 판정
+주관적·미래적 주장도 Debate Prompting 특성상 양측이 논거를 생성할 수 있어 한쪽이 우세해 보이면 TRUE/FALSE로 판정되는 경향이 있습니다. `UNVERIFIABLE`은 양측 근거가 실질적으로 균등할 때만 나오는 경향이 있어 과소 판정됩니다.
