@@ -38,15 +38,24 @@ def render_claim_results(result: dict) -> None:
         result: 파이프라인 실행 결과 딕셔너리.
     """
     with st.expander("🔍 추출된 주장 목록", expanded=False):
-        claims = result.get("claims", [])
-        if claims:
-            for idx, claim in enumerate(claims, start=1):
-                st.write(f"**{idx}.** {claim}")
+        claims_pro = result.get("claims_pro", [])
+        claims_con = result.get("claims_con", [])
+        if claims_pro or claims_con:
+            if claims_pro:
+                st.markdown("**찬성 주장**")
+                for idx, claim in enumerate(claims_pro, start=1):
+                    st.write(f"**{idx}.** {claim}")
+            if claims_con:
+                st.markdown("**반대 주장**")
+                for idx, claim in enumerate(claims_con, start=1):
+                    st.write(f"**{idx}.** {claim}")
         else:
             st.write("_추출된 주장이 없습니다._")
 
     with st.expander("📡 검색 결과 (근거)", expanded=False):
-        search_results = result.get("search_results", [])
+        search_results_pro = result.get("search_results_pro", [])
+        search_results_con = result.get("search_results_con", [])
+        search_results = search_results_pro + search_results_con
         if search_results:
             for item in search_results:
                 st.markdown(f"**주장:** {item['claim']}")

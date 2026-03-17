@@ -9,7 +9,11 @@ Streamlit 없이 단독으로 실행하여 파이프라인 전체 동작을 검�
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
+
+# Windows 터미널의 cp949 인코딩 문제로 이모지 출력 실패 방지
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 import main
 from main import create_initial_state
@@ -50,7 +54,8 @@ def run_single_test(label: str, input_text: str) -> None:
     print(result["final_report"])
     print()
     print("[상태 요약]")
-    print(f"  추출된 주장 수  : {len(result.get('claims', []))}")
+    claims_count = len(result.get('claims_pro', [])) + len(result.get('claims_con', []))
+    print(f"  추출된 주장 수  : {claims_count}")
     print(f"  신뢰도 점수    : {result.get('judge_score', 0.0):.2f}")
     print(f"  Self-Correction: {result.get('correction_retries', 0)}회")
     print(f"  에러           : {result.get('error')}")

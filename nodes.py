@@ -31,8 +31,7 @@ def claim_extractor_node(state: FactCheckState) -> dict[str, Any]:
         state: 현재 파이프라인 상태. input_text 필드를 사용합니다.
 
     Returns:
-        claims 필드를 포함한 부분 상태 업데이트 딕셔너리.
-        입력값에 대한 주장을 리턴하게 됨.
+        사용자 입력에 대한 찬반 주장 생성 -> claims_pro, claims_con
     """
     logger.info("[claim_extractor] 노드 진입. 입력 길이: %d자", len(state["input_text"]))
 
@@ -43,17 +42,25 @@ def claim_extractor_node(state: FactCheckState) -> dict[str, Any]:
 
         # 모듈.forward
         result = module(text=state["input_text"])  # LLM이 주장을 \n 구분 문자열로 반환
-        raw_claims = result.claims.strip()
+        raw_claims_pro = result.claims_pro.strip()
+        raw_claims_con = result.claims_con.strip()
 
         # "주장1\n주장2" → ["주장1", "주장2"] 형태로 변환
-        claims = [line.strip() for line in raw_claims.split("\n") if line.strip()]
-        if not claims:
-            # LLM이 아무것도 추출 못한 경우 원문 앞부분을 주장으로 대체
-            logger.warning("[claim_extractor] 추출된 주장이 없어 원문 첫 200자를 사용합니다.")
-            claims = [state["input_text"][:200]]
+        claims_pro = [line.strip() for line in raw_claims_pro.split("\n") if line.strip()]
+        claims_con = [line.strip() for line in raw_claims_con.split("\n") if line.strip()]
 
-        logger.info("[claim_extractor] 노드 종료. 추출된 주장 수: %d", len(claims))
-        return {"claims": claims }
+        if not claims_pro:
+            # LLM이 아무것도 추출 못한 경우 원문 앞부분을 주장으로 대체
+            logger.warning("[claim_extractor] 추출된 찬성 주장이 없어 원문 첫 200자를 사용합니다.")
+            claims_pro = [state["input_text"][:200]]
+
+        if not claims_con:
+            # LLM이 아무것도 추출 못한 경우 원문 앞부분을 주장으로 대체
+            logger.warning("[claim_extractor] 추출된 반대 주장이 없어 원문 첫 200자를 사용합니다.")
+            claims_con = [state["input_text"][:200]]
+
+        logger.info("[claim_extractor] 노드 종료. 추출된 주장 수: 찬성 %d, 반대 %d", len(claims_pro), len(claims_con))
+        return {"claims_pro": claims_pro, "claims_con": claims_con }
 
     except OpenAIError as exc:
         logger.error("[claim_extractor] OpenAI API 호출 실패: %s", exc, exc_info=True)
@@ -64,40 +71,26 @@ def claim_extractor_node(state: FactCheckState) -> dict[str, Any]:
 
 
 
-def evidence_searcher_node(state: FactCheckState) -> dict[str, Any]:
+def __get_evidence_for_claims(tavily: TavilyClient, claims: list[str]) -> list[dict[str,str]]:
     """
-    각 주장에 대해 Tavily API로 근거를 검색.
-    Tavaily API 비용이 사용됨.
-    주장 여러개를 주장1개, 근거1개의 쌍으로 dict로 만들고 list로 만들어 반환.
-    주장: claim
-    근거: evidence
+    각 주장에 대해 Tavily API로 근거를 검색하여 리턴.
 
-    Args:
-        state: 현재 파이프라인 상태. claims 필드를 사용합니다.
+    Args:  
+        claims_pro: 찬성 주장 목록. 예: ["BTS가 빌보드 1위를 달성했다", "삼성 본사는 한국에 있다"]
+        claims_con: 반대 주장 목록. 예: ["BTS가 빌보드 1위를 달성하지 못했다", "삼성 자회사가 한국에 있다"]
 
     Returns:
-        주장별 검색 결과(search_results)를 dict로 리턴.
+        [{"claim": "주장1", "evidence": "근거1"}, {"claim": "주장2", "evidence": "근거2"}]
     """
-    claims = state.get("claims", [])
-    # claims 예시: ["BTS가 빌보드 1위를 달성했다", "삼성 본사는 미국에 있다"]
-    logger.info("[evidence_searcher] 노드 진입. 검색할 주장 수: %d", len(claims))
 
-    if state.get("error"):
-        logger.warning("[evidence_searcher] 에러 상태 감지. 검색 생략.")
-        return {}
 
-    client = TavilyClient(api_key=settings.tavily_api_key)
-
-    # 최종적으로 반환할 결과 리스트.
-    # 주장이 여러 개이므로 list[dict] 구조를 사용.
-    # 예: [{"claim": "주장1", "evidence": "근거1"}, {"claim": "주장2", "evidence": "근거2"}]
     search_results: list[dict[str, str]] = []
 
     for claim in claims:  # 주장 하나씩 순차적으로 검색
         logger.debug("[evidence_searcher] 검색 실행: %s", claim)
         try:
             # claim 문자열을 검색 쿼리로 사용. 상위 3개 결과만 가져옴.
-            response = client.search(query=claim, max_results=3)
+            response = tavily.search(query=claim, max_results=3)
 
             # response["results"]는 검색 결과 list.
             # 각 결과에서 "content" 필드(본문 텍스트)만 추출.
@@ -125,95 +118,57 @@ def evidence_searcher_node(state: FactCheckState) -> dict[str, Any]:
             # 근거가 없어도 주장은 남겨야 fact_judge가 UNVERIFIABLE로 처리할 수 있음
             search_results.append({"claim": claim, "evidence": ""})
 
-    logger.info("[evidence_searcher] 노드 종료. 결과 수: %d", len(search_results))
-    return {"search_results": search_results}
+    return search_results
 
 
-
-
-def fact_judge_node(state: FactCheckState) -> dict[str, Any]:
+def evidence_searcher_node(state: FactCheckState) -> dict[str, Any]:
     """
-    검색된 근거를 바탕으로 각 주장의 사실 여부를 판단.
-    Self-Correction 루프에서 재진입 시 judge_feedback을 근거에 추가해 개선된 판단을 유도.
-    주장(claim), 판단(verdict), 근거(reason)를 리스트로 만들어 judgement_results로 리턴.
+    각 주장에 대해 Tavily API로 근거를 검색.
+    Tavaily API 비용이 사용됨.
+    주장 여러개를 주장1개, 근거1개의 쌍으로 dict로 만들고 list로 만들어 반환.
+    주장: claim
+    근거: evidence
 
     Args:
-        state: 현재 파이프라인 상태. search_results, judge_feedback 필드를 사용합니다.
+        state: 현재 파이프라인 상태. claims 필드를 사용합니다.
 
     Returns:
-        judgment_results 필드를 포함한 부분 상태 업데이트 딕셔너리.
+        주장별 검색 결과(search_results)를 dict로 리턴.
     """
-    search_results = state.get("search_results", [])
-    logger.info("[fact_judge] 노드 진입. 판단할 항목 수: %d", len(search_results))
+    # 각각의 찬반 주장들.
+    claims_pro = state.get("claims_pro", [])
+    claims_con = state.get("claims_con", [])
+    
+    logger.info(f"[evidence_searcher] 노드 진입. 검색할 주장 수: 찬성 {len(claims_pro)}, 반대 {len(claims_con)}")
 
     if state.get("error"):
-        logger.warning("[fact_judge] 에러 상태 감지. 판단 생략.")
+        logger.warning("[evidence_searcher] 에러 상태 감지. 검색 생략.")
         return {}
 
-    # DSPy ChainOfThought 모듈
-    module = dspy_modules.fact_judge  
+    tavily = TavilyClient(api_key=settings.tavily_api_key)
 
-    # 이전 Self-Correction 루프의 피드백. 초기 실행할떈 없음
-    prior_feedback = state.get("judge_feedback", "")  
-    judgment_results: list[dict[str, str]] = []
+    # 최종적으로 반환할 결과 리스트.
+    # 주장이 여러 개이므로 list[dict] 구조를 사용.
+    # 예: [{"claim": "주장1", "evidence": "근거1"}, {"claim": "주장2", "evidence": "근거2"}]
+    search_results_pro: list[dict[str, str]] = __get_evidence_for_claims(tavily, claims_pro)
+    search_results_con: list[dict[str, str]] = __get_evidence_for_claims(tavily, claims_con)
 
-    # 검색 결과들 하나씩 DSPy 모듈 실행.
-    for item in search_results:
+    logger.info("[evidence_searcher] 노드 종료. 결과 수: %d", len(search_results_pro))
 
-        # 주장과 근거
-        claim = item["claim"]
-        evidence = item["evidence"]
+    return {
+        "search_results_pro": search_results_pro,
+        "search_results_con": search_results_con
+    }
 
-        # Self-Correction 재진입 시 이전 피드백을 근거에 붙여 LLM이 개선된 판단을 내리도록 유도
-        if prior_feedback:
-            evidence = f"{evidence}\n\n[이전 검토 피드백]: {prior_feedback}"
 
-        logger.debug("[fact_judge] LLM 호출: 주장='%s'", claim)
-        try:
-            # 모듈.forward
-            result = module(claim=claim, evidence=evidence)
+def __get_combined_claim_and_evidence(search_results: list[dict[str, str]]) -> tuple[str, str]:
+    """
+    주장과 근거를 각각 " | "로 연결하여 하나의 문자열로 리턴.
+    """
 
-            # 사실 판단(verdict)과 그 근거(reasoning).
-            verdict = result.verdict.strip().upper()
-            reasoning = result.reasoning.strip()
-
-            # 주장, 판단, 근거를 append
-            judgment_results.append(
-                {"claim": claim, "verdict": verdict, "reasoning": reasoning}
-            )
-            logger.debug("[fact_judge] 판단 완료: '%s' → %s", claim, verdict)
-
-        except OpenAIError as exc:
-            logger.error(
-                "[fact_judge] OpenAI API 호출 실패 (주장: '%s'): %s",
-                claim,
-                exc,
-                exc_info=True,
-            )
-            judgment_results.append(
-                {
-                    "claim": claim,
-                    "verdict": "UNVERIFIABLE",
-                    "reasoning": f"API 오류로 판단 불가: {exc}",
-                }
-            )
-        except Exception as exc:
-            logger.error(
-                "[fact_judge] 예기치 않은 오류 (주장: '%s'): %s",
-                claim,
-                exc,
-                exc_info=True,
-            )
-            judgment_results.append(
-                {
-                    "claim": claim,
-                    "verdict": "UNVERIFIABLE",
-                    "reasoning": f"오류 발생: {exc}",
-                }
-            )
-
-    logger.info("[fact_judge] 노드 종료. 판단 결과 수: %d", len(judgment_results))
-    return {"judgment_results": judgment_results}
+    combined_claim = " | ".join(item["claim"] for item in search_results)
+    combined_evidence = " | ".join(item["evidence"] for item in search_results)
+    return combined_claim, combined_evidence
 
 
 def debate_node(state: FactCheckState) -> dict[str, Any]:
@@ -237,14 +192,13 @@ def debate_node(state: FactCheckState) -> dict[str, Any]:
     
     module = dspy_modules.agent_debate  # DSPy ChainOfThought 모듈
 
-    search_results = state.get("search_results", [])
-
-    # 여러 주장/근거를 " | "로 합쳐 한 번에 모듈 호출
-    combined_claim = " | ".join(item["claim"] for item in search_results)
-    combined_evidence = " | ".join(item["evidence"] for item in search_results)
+    search_results_pro = state.get( "search_results_pro", [] )
+    search_results_con = state.get( "search_results_con", [] )
+    combined_claim_pro, combined_evidence_pro = __get_combined_claim_and_evidence( search_results_pro )
+    combined_claim_con, combined_evidence_con = __get_combined_claim_and_evidence( search_results_con )
 
     try:
-        result = module(claim=combined_claim, evidence=combined_evidence)
+        result = module(claim_pro=combined_claim_pro, evidence_pro=combined_evidence_pro, claim_con=combined_claim_con, evidence_con=combined_evidence_con)
         debate_pro = result.debate_pro
         debate_con = result.debate_con
     except OpenAIError as e:
@@ -288,19 +242,20 @@ def debate_judge_node(state: FactCheckState) -> dict[str, Any]:
 
     module = dspy_modules.debate_judge
 
-    search_results = state.get("search_results", [])
-    debate_pro = state.get("debate_pro", "")
-    debate_con = state.get("debate_con", "")
-
-    combined_claim = " | ".join(item["claim"] for item in search_results)
-    combined_evidence = " | ".join(item["evidence"] for item in search_results)
+    search_results_pro = state.get("search_results_pro", [])
+    search_results_con = state.get("search_results_con", [])
+    combined_claim_pro, combined_evidence_pro = __get_combined_claim_and_evidence(search_results_pro)
+    combined_claim_con, combined_evidence_con = __get_combined_claim_and_evidence(search_results_con)
+    combined_claim = f"{combined_claim_pro} | {combined_claim_con}"
 
     try:
         result = module(
-            claim=combined_claim,
-            evidence=combined_evidence,
-            debate_pro=debate_pro,
-            debate_con=debate_con,
+            claim_pro=combined_claim_pro,
+            claim_con=combined_claim_con,
+            evidence_pro=combined_evidence_pro,
+            evidence_con=combined_evidence_con,
+            debate_pro=state.get("debate_pro", ""),
+            debate_con=state.get("debate_con", ""),
         )
         verdict = result.verdict.strip().upper()
         reasoning = result.reason.strip()
@@ -339,28 +294,18 @@ def llm_judge_node(state: FactCheckState) -> dict[str, Any]:
         logger.warning("[llm_judge] 에러 상태 감지. 평가 생략. 점수 0.0 반환.")
         return {"judge_score": 0.0, "judge_feedback": ""}
 
-    # 검색 결과와 판단 결과.
-    # 검색 결과가 리스트로 들어 있음 -> { "claim": ..., "evidence": ...}
     # 판단 결과가 리스트로 들어 있음 ->  { "claim": ..., "verdict": ..., "reasoning": ...}
-    search_results = state.get("search_results", [])
+    search_results_pro = state.get("search_results_pro", [])
+    search_results_con = state.get("search_results_con", [])
     judgment_results = state.get("judgment_results", [])
 
-    # 여러 주장의 결과를 " | "로 연결해 LLM에게 한 번에 전달
-    claims_list = []
-    evidence_list = []
+    # verdict / reason 여러 항목은 " | "로 연결해 LLM에게 한 번에 전달
     verdict_list = []
     reasoning_list = []
-
     for r in judgment_results:
-        claims_list.append(r["claim"])
         verdict_list.append(r["verdict"])
         reasoning_list.append(r["reasoning"])
 
-    for item in search_results:
-        evidence_list.append(item.get("evidence", ""))
-
-    combined_claim = " | ".join(claims_list)
-    combined_evidence = " | ".join(evidence_list)
     combined_verdict = " | ".join(verdict_list)
     combined_reasoning = " | ".join(reasoning_list)
 
@@ -371,11 +316,18 @@ def llm_judge_node(state: FactCheckState) -> dict[str, Any]:
 
     try:
         # 모듈.forward
+        combined_claim_pro, combined_evidence_pro = __get_combined_claim_and_evidence(search_results_pro)
+        combined_claim_con, combined_evidence_con = __get_combined_claim_and_evidence(search_results_con)
+
         result = module(
-            claim=combined_claim,
-            evidence=combined_evidence,
+            claim_pro=combined_claim_pro,
+            claim_con=combined_claim_con,
+            evidence_pro=combined_evidence_pro,
+            evidence_con=combined_evidence_con,
+            debate_pro=state.get("debate_pro", ""),
+            debate_con=state.get("debate_con", ""),
             verdict=combined_verdict,
-            reasoning=combined_reasoning,
+            reason=combined_reasoning,
         )
 
         score = max(0.0, min(1.0, float(result.quality_score.strip())))  # 0.0~1.0 범위로 클램프

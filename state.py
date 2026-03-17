@@ -12,10 +12,12 @@ class FactCheckState(TypedDict):
     """팩트체크 파이프라인 전체에서 공유되는 상태 구조."""
 
     input_text: Annotated[str, "사용자가 입력값"]
-    claims: Annotated[list[str], "입력 텍스트에서 추출된 주장 목록"]
+    claims_pro: Annotated[list[str], "입력 텍스트에서 추출된 찬성 주장 목록"]
+    claims_con: Annotated[list[str], "입력 텍스트에서 추출된 반대 주장 목록"]
 
     # 주장별 검색 결과 리스트. 각 항목: {"claim": ..., "evidence": ...}
-    search_results: Annotated[list[dict[str, str]], "주장별 검색 결과 리스트"]
+    search_results_pro: Annotated[list[dict[str, str]], "주장별 검색 결과 리스트"]
+    search_results_con: Annotated[list[dict[str, str]], "주장별 검색 결과 리스트"]
 
     # 주장별 판단 결과 리스트. 각 항목: {"claim": ..., "verdict": ..., "reasoning": ...}
     judgment_results: Annotated[list[dict[str, str]], "주장별 판단 결과 리스트"]
