@@ -3,7 +3,6 @@
 LangGraph + DSPy + Multi Agent + Debate Prompting + Self Correction + LLM as a Judge 기반 사실 확인 검사 에이전트.
 
 > 이 포트폴리오는 이전 포트폴리오에서 제대로 적용하지 못했거나, 오버엔지니어링이라 판단되어 적용하지 않았던 기술들을 이용해 별도의 포트폴리오로 만든 결과물입니다.<br>
-> ⚠️ **기능적으로는 작동 하지만 정확도는 아직 보강중입니다!**
 
 **[▶ 데모 바로가기](https://factcheck.mbh.watch/)**
 
@@ -36,17 +35,22 @@ LangGraph + DSPy + Multi Agent + Debate Prompting + Self Correction + LLM as a J
 사용자 입력 (뉴스 텍스트)
     │
     ▼
-claim_extractor        ← DSPy ChainOfThought: 주장 추출
+claim_extractor        ← DSPy ChainOfThought: 찬성/반대 주장 분리 추출
+                           claims_pro (사실 지지 주장 목록)
+                           claims_con (사실 반박 주장 목록)
     │
     ▼
-evidence_searcher      ← Tavily API: 주장별 근거 검색
+evidence_searcher      ← Tavily API: 찬성/반대 주장별 근거 검색
+                           search_results_pro / search_results_con
     │
     ▼
 ── FactCheckAgent (서브그래프) ──────────────────────
     │
-    ├─ debate          ← DSPy ChainOfThought: 찬성/반대 논거 생성 (Debate Prompting)
+    ├─ debate          ← DSPy ChainOfThought: 찬반 주장+근거를 받아 논거 생성 (Debate Prompting)
+    │                      debate_pro / debate_con
     │
     ├─ debate_judge    ← DSPy ChainOfThought: 찬반 논거 검토 후 최종 판정
+    │                      verdict (TRUE / FALSE / UNVERIFIABLE)
     │
     ├─ llm_judge       ← DSPy Predict: 판정 품질 평가 (0~1)
     │
@@ -71,17 +75,19 @@ report_generator       ← 찬반 토론 + 최종 판정 마크다운 리포트 
 
 ## DSPy 활용 방식
 ```python
+# 찬성/반대 주장을 입력으로 받아 각각의 논거를 생성
 class AgentDebateSignature(dspy.Signature):
-    claim: str = dspy.InputField(desc="논의할 주장")
-    evidence: str = dspy.InputField(desc="논의에 참고할 근거 텍스트")
+    claim_pro: str = dspy.InputField(desc="사실임을 지지하는 찬성 주장")
+    claim_con: str = dspy.InputField(desc="사실이 아님을 지적하는 반대 주장")
+    evidence_pro: str = dspy.InputField(desc="찬성측 근거 텍스트")
+    evidence_con: str = dspy.InputField(desc="반대측 근거 텍스트")
     debate_pro: str = dspy.OutputField(desc="찬성 에이전트의 논거")
     debate_con: str = dspy.OutputField(desc="반대 에이전트의 논거")
 ```
 
 | 모듈 | DSPy 타입 | 컴파일 | 이유 |
 |---|---|---|---|
-| `claim_extractor` | ChainOfThought | ✅ | 텍스트에서 주장 추론 필요 |
-| `fact_judge` | ChainOfThought | ✅ | 근거 분석 후 판정 추론 필요 |
+| `claim_extractor` | ChainOfThought | ✅ | 찬성/반대 주장 분리 추출 추론 필요 |
 | `agent_debate` | ChainOfThought | ❌ | 찬반 논거는 정답이 없어 metric 작성 불가 |
 | `debate_judge` | ChainOfThought | ✅ | 최종 판정(TRUE/FALSE/UNVERIFIABLE) metric 사용 |
 | `llm_judge` | Predict | ✅ | 완성된 결과를 평가만 하므로 추론 불필요 |
@@ -125,3 +131,5 @@ class AgentDebateSignature(dspy.Signature):
 - 예) 정답 키워드 `"BTS 빌보드"` vs 예측 결과 `"BTS가 빌보드 핫100에서"` → 단순 매칭은 False
 - 그렇다고 유사도 검색을 넣기엔 오버엔지니어링
 - rapidfuzz의 `partial_ratio`를 사용해 편집 거리 기반 유사도 80점 이상이면 합격으로 처리, 표현 변형에도 robust한 metric 구현
+
+---
