@@ -1,0 +1,218 @@
+{
+  "timestamp": "20260317_171701",
+  "total": 21,
+  "correct": 14,
+  "accuracy": 0.6666666666666666,
+  "cases": [
+    {
+      "id": "T01",
+      "text": "아이폰은 애플이 만든다.",
+      "expected": "TRUE",
+      "actual": "TRUE",
+      "correct": true,
+      "judge_score": 0.9,
+      "correction_retries": 0,
+      "error": null
+    },
+    {
+      "id": "T02",
+      "text": "파이썬은 프로그래밍 언어다.",
+      "expected": "TRUE",
+      "actual": "TRUE",
+      "correct": true,
+      "judge_score": 0.99,
+      "correction_retries": 0,
+      "error": null
+    },
+    {
+      "id": "T03",
+      "text": "대한민국의 수도는 서울이다.",
+      "expected": "TRUE",
+      "actual": "TRUE",
+      "correct": true,
+      "judge_score": 1.0,
+      "correction_retries": 0,
+      "error": null
+    },
+    {
+      "id": "T04",
+      "text": "BTS의 Dynamite는 2020년 빌보드 핫100 1위를 기록했다.",
+      "expected": "TRUE",
+      "actual": "TRUE",
+      "correct": true,
+      "judge_score": 0.99,
+      "correction_retries": 0,
+      "error": null
+    },
+    {
+      "id": "T05",
+      "text": "넷플릭스는 온라인 동영상 스트리밍 서비스다.",
+      "expected": "TRUE",
+      "actual": "TRUE",
+      "correct": true,
+      "judge_score": 0.85,
+      "correction_retries": 0,
+      "error": null
+    },
+    {
+      "id": "T06",
+      "text": "테슬라는 전기차를 만드는 회사다.",
+      "expected": "TRUE",
+      "actual": "TRUE",
+      "correct": true,
+      "judge_score": 0.92,
+      "correction_retries": 0,
+      "error": null
+    },
+    {
+      "id": "T07",
+      "text": "삼성전자의 본사는 대한민국 수원시에 있다.",
+      "expected": "TRUE",
+      "actual": "TRUE",
+      "correct": true,
+      "judge_score": 0.95,
+      "correction_retries": 0,
+      "error": null
+    },
+    {
+      "id": "F01",
+      "text": "지구는 평평하다.",
+      "expected": "FALSE",
+      "actual": "FALSE",
+      "correct": true,
+      "judge_score": 0.99,
+      "correction_retries": 0,
+      "error": null
+    },
+    {
+      "id": "F02",
+      "text": "아이폰 12는 세계 최초의 5G 스마트폰이다.",
+      "expected": "FALSE",
+      "actual": "FALSE",
+      "correct": true,
+      "judge_score": 0.92,
+      "correction_retries": 0,
+      "error": null
+    },
+    {
+      "id": "F03",
+      "text": "삼성전자 본사는 미국 실리콘밸리에 있다.",
+      "expected": "FALSE",
+      "actual": "FALSE",
+      "correct": true,
+      "judge_score": 0.99,
+      "correction_retries": 0,
+      "error": null
+    },
+    {
+      "id": "F04",
+      "text": "서울은 세계에서 인구밀도가 가장 높은 도시다.",
+      "expected": "FALSE",
+      "actual": "TRUE",
+      "correct": false,
+      "judge_score": 0.91,
+      "correction_retries": 0,
+      "error": null
+    },
+    {
+      "id": "F05",
+      "text": "mRNA 백신 기술은 2020년에 처음 개발됐다.",
+      "expected": "FALSE",
+      "actual": "FALSE",
+      "correct": true,
+      "judge_score": 0.92,
+      "correction_retries": 0,
+      "error": null
+    },
+    {
+      "id": "F06",
+      "text": "유튜브는 마이크로소프트가 운영하는 동영상 플랫폼이다.",
+      "expected": "FALSE",
+      "actual": "FALSE",
+      "correct": true,
+      "judge_score": 0.99,
+      "correction_retries": 0,
+      "error": null
+    },
+    {
+      "id": "F07",
+      "text": "파이썬 언어는 1990년대 마크 저커버그가 만들었다.",
+      "expected": "FALSE",
+      "actual": "TRUE",
+      "correct": false,
+      "judge_score": 1.0,
+      "correction_retries": 0,
+      "error": null
+    },
+    {
+      "id": "U01",
+      "text": "이 영화는 역대 가장 훌륭한 작품이다.",
+      "expected": "UNVERIFIABLE",
+      "actual": "UNVERIFIABLE",
+      "correct": true,
+      "judge_score": 0.65,
+      "correction_retries": 3,
+      "error": null
+    },
+    {
+      "id": "U02",
+      "text": "이 제품이 시중에서 가장 좋은 품질이다.",
+      "expected": "UNVERIFIABLE",
+      "actual": "UNVERIFIABLE",
+      "correct": true,
+      "judge_score": 0.65,
+      "correction_retries": 3,
+      "error": null
+    },
+    {
+      "id": "U03",
+      "text": "한국 음식이 세계에서 제일 맛있다.",
+      "expected": "UNVERIFIABLE",
+      "actual": "TRUE",
+      "correct": false,
+      "judge_score": 0.92,
+      "correction_retries": 0,
+      "error": null
+    },
+    {
+      "id": "U04",
+      "text": "A 기업이 업계에서 가장 혁신적인 회사다.",
+      "expected": "UNVERIFIABLE",
+      "actual": "TRUE",
+      "correct": false,
+      "judge_score": 0.92,
+      "correction_retries": 0,
+      "error": null
+    },
+    {
+      "id": "U05",
+      "text": "이 책이 올해 최고의 베스트셀러다.",
+      "expected": "UNVERIFIABLE",
+      "actual": "TRUE",
+      "correct": false,
+      "judge_score": 0.9,
+      "correction_retries": 0,
+      "error": null
+    },
+    {
+      "id": "U06",
+      "text": "2050년에는 AI가 인간의 모든 직업을 대체할 것이다.",
+      "expected": "UNVERIFIABLE",
+      "actual": "TRUE",
+      "correct": false,
+      "judge_score": 0.9,
+      "correction_retries": 0,
+      "error": null
+    },
+    {
+      "id": "U07",
+      "text": "현재 가장 인기 있는 프로그래밍 언어는 파이썬이다.",
+      "expected": "UNVERIFIABLE",
+      "actual": "TRUE",
+      "correct": false,
+      "judge_score": 0.9,
+      "correction_retries": 0,
+      "error": null
+    }
+  ]
+}

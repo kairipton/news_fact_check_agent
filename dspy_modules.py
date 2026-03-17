@@ -34,7 +34,10 @@ class ClaimExtractorSignature(dspy.Signature):
         desc="사용자 입력에 대한 찬성 에이전트가 주장에 대해 사실임을 지지하는 주장 목록. 각 주장을 개행(\\n)으로 구분하여 출력."
     )
     claims_con: str = dspy.OutputField(
-        desc="사용자 입력에 대한 반대 에이전트가 주장에 대해 사실이 아님을 지적하는 주장 목록. 각 주장을 개행(\\n)으로 구분하여 출력."
+        desc="사용자 입력에 대한 반대 에이전트가 주장에 대해 사실이 아님을 지적하는 주장 목록. "
+        "각 주장을 개행(\\n)으로 구분하여 출력. "
+        "단, 초등학교 수준의 상식이나 누구나 인정하는 명백한 사실에 대해서는 억지 반론을 만들지 말 것. "
+        "그런 경우는 빈 문자열을 출력할 것."
     )
 
 class AgentDebateSignature(dspy.Signature):
@@ -54,6 +57,15 @@ class AgentDebateSignature(dspy.Signature):
 class DebateJudgeSignature(dspy.Signature):
     """
     찬성 측과 반대 측 주장을 모두 검토한 후 최종 판정을 내림.
+
+    판정 기준:
+    - TRUE: 검색 근거가 주장을 명확히 뒷받침하고, 찬성 주장이 반대 주장보다 실질적으로 우세한 경우
+    - FALSE: 검색 근거가 주장을 명확히 반박하고, 반대 주장이 찬성 주장보다 실질적으로 우세한 경우
+    - UNVERIFIABLE: 근거가 불충분하거나 양측 주장이 팔팔하게 맥서서 객관적 판단이 어려운 경우,
+      또는 주관적·미래적 주장으로 사실 확인 자체가 불가능한 경우
+    ※ 반대 측 주장이 비어있거나 근거 없는 억지 반론인 경우, 찬성 측이 일방적으로 우세한 것으로 보고 TRUE 또는 FALSE로 판정할 것.
+    ※ UNVERIFIABLE은 양측이 실질적으로 팔팔할 때만 사용할 것.
+    ※ verdict는 반드시 TRUE, FALSE, UNVERIFIABLE 세 값 중 하나만 출력할 것.
     """
 
     claim_pro: str = dspy.InputField(desc="사용자 입력에 대한 찬성측에서 논의할 주장")
@@ -68,7 +80,15 @@ class DebateJudgeSignature(dspy.Signature):
 
 
 class LLMJudgeSignature(dspy.Signature):
-    """찬반 토론 기반 팩트체크 판단 결과의 품질과 신뢰도를 평가합니다."""
+    """
+    찬반 토론 기반 팩트체크 판단 결과의 품질과 신뢰도를 평가합니다.
+
+    평가 기준:
+    - 근거와 판정의 일관성: 제시된 근거가 verdict를 논리적으로 지지하는지
+    - 근거의 충분성: 찾마 자료의 양과 질이 적절한지
+    - 양측 논거 반영: 찬반 양측 주장을 공정하게 검토했는지
+    - quality_score는 0.0~1.0 범위의 소수점 숫자만 출력할 것.
+    """
 
     claim_pro: str = dspy.InputField(desc="찬성 측 주장")
     claim_con: str = dspy.InputField(desc="반대 측 주장")
